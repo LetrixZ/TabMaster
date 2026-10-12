@@ -201,6 +201,19 @@ export class PythonInterop {
     }
 
     /**
+     * Re-reads the plugin's settings from disk, discarding any in-memory state.
+     * Useful when the settings file is modified by external tools.
+     * @returns A promise resolving to nothing, or an Error if the reload failed.
+     */
+    static async reloadSettings(): Promise<void | Error> {
+        try {
+            return await call<[], void>('reload_settings')
+        } catch (e: any) {
+            return e
+        }
+    }
+
+    /**
      * Gets the shared tabs.
      * @returns A promise resolving to the shared tabs or null when the tab structure fails validation
      */

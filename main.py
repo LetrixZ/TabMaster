@@ -286,6 +286,15 @@ class Plugin:
     Plugin.users_dict = await Plugin.get_setting(self, "usersDict", {})
     Plugin.tags = await Plugin.get_setting(self, "tags", [])
 
+  async def reload_settings(self) -> None:
+    """
+    Re-reads settings.json from disk, discarding any in-memory settings.
+
+    Used to pick up changes made to the settings file by external tools while
+    the plugin is running.
+    """
+    await Plugin.read(self)
+
   T = TypeVar("T")
 
   # Plugin settingsManager wrappers

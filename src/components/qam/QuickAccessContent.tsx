@@ -16,6 +16,7 @@ import {
     FaArrowUpFromBracket,
     FaArrowRightToBracket,
     FaFolderPlus,
+    FaRotateRight,
     FaSlideshare,
 } from 'react-icons/fa6'
 import { PiListPlusBold } from 'react-icons/pi'
@@ -101,6 +102,15 @@ export const QuickAccessContent: VFC<{}> = ({}) => {
             PythonInterop.toast('Success!', 'Settings backup finished.')
         } else {
             PythonInterop.toast('Error!', 'Settings backup failed.')
+        }
+    }
+
+    const handleReloadPrompt = async () => {
+        const success = await tabMasterManager.reloadTabs()
+        if (success) {
+            PythonInterop.toast('Success!', 'Settings reloaded from disk.')
+        } else {
+            PythonInterop.toast('Error!', 'Failed to reload settings from disk.')
         }
     }
 
@@ -222,6 +232,25 @@ export const QuickAccessContent: VFC<{}> = ({}) => {
                                     onClick={() => showModalSharedTabs(tabMasterManager)}
                                 >
                                     <FaSlideshare size='1.4em' />
+                                </DialogButton>
+                            </Focusable>
+                            <Focusable className='add-tab-btn' style={{ marginLeft: '10px' }}>
+                                <DialogButton
+                                    disabled={!tabMasterManager.hasSettingsLoaded}
+                                    style={{
+                                        height: '40px',
+                                        width: '42px',
+                                        minWidth: 0,
+                                        padding: '10px 12px',
+                                        marginLeft: 'auto',
+                                        display: 'flex',
+                                        justifyContent: 'center',
+                                        alignItems: 'center',
+                                    }}
+                                    onOKActionDescription={'Reload Settings From Disk'}
+                                    onClick={handleReloadPrompt}
+                                >
+                                    <FaRotateRight size='1em' />
                                 </DialogButton>
                             </Focusable>
                             <Focusable className='add-tab-btn' style={{ marginLeft: '10px' }}>

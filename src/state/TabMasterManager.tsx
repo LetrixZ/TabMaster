@@ -495,9 +495,11 @@ export class TabMasterManager {
      */
     disposeReactions(): void {
         this.disposers.forEach(disposer => disposer())
+        this.disposers = []
         for (const disposer of Object.values(this.collectionDisposers)) {
             disposer()
         }
+        this.collectionDisposers = {}
     }
 
     /**
@@ -835,6 +837,36 @@ export class TabMasterManager {
                 LogController.raiseError(`Encountered an error while loading \n ${e.message}`)
             }
         }
+    }
+
+    /**
+     * Reloads the user's tab state from disk, discarding any in-memory state.
+     *
+     * This is intended for picking up changes made to settings.json by external
+     * tools while the plugin is running. It tears down existing reactions and
+     * cached collections before re-running the normal load flow.
+     * @returns Whether the settings were successfully reloaded.
+     */
+    reloadTabs = async (): Promise<boolean> => {
+        this.disposeReactions()
+        this.tabsMap.clear()
+        this.visibleTabsList = []
+        this.hiddenTabsList = []
+        this.currentUsersFriends = []
+        this.friendsGameMap = new Map()
+        this.allStoreTags = []
+        this.userCollectionIds = []
+        this.hasLoaded = false
+        this.invalidSettingsLoaded.isTrue = false
+
+        const res = await PythonInterop.reloadSettings()
+        if (res instanceof Error) {
+            LogController.raiseError(`Error reloading settings from disk \n ${res.message}`)
+            return false
+        }
+
+        await this.loadTabs()
+        return true
     }
 
     /**
