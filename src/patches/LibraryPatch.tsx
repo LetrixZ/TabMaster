@@ -8,6 +8,7 @@ import { LibraryMenu } from '../components/context-menus/LibraryMenu'
 import { MicroSDeckInterop } from '../lib/controllers/MicroSDeckInterop'
 import { addPatch } from '../lib/Utils'
 import { SubTabBar } from '../components/other/SubTabBar'
+import { showModalEditTab } from '../components/modals/EditTabModal'
 
 let TabAppGridComponent: TabAppGridComponent | undefined
 
@@ -144,6 +145,7 @@ export const patchLibrary = (tabMasterManager: TabMasterManager): RoutePatch => 
                                                         <SubTabBarWithContents
                                                             parentTab={customTab}
                                                             subTabs={subTabs}
+                                                            tabMasterManager={tabMasterManager}
                                                             TabAppGrid={TabAppGrid}
                                                             TabContext={TabContext}
                                                             sortingProps={sortingProps}
@@ -208,6 +210,7 @@ export const patchLibrary = (tabMasterManager: TabMasterManager): RoutePatch => 
 function SubTabBarWithContents({
     parentTab,
     subTabs,
+    tabMasterManager,
     TabAppGrid,
     TabContext,
     sortingProps,
@@ -217,6 +220,7 @@ function SubTabBarWithContents({
 }: {
     parentTab: CustomTabContainer
     subTabs: CustomTabContainer[]
+    tabMasterManager: TabMasterManager
     TabAppGrid: TabAppGridComponent
     TabContext: TabContext | undefined
     sortingProps: { eSortBy: number; setSortBy: (n: number) => void; showSortingContextMenu: () => void }
@@ -261,6 +265,7 @@ function SubTabBarWithContents({
                 selectedSubTabId={selectedSubTabId}
                 collectionAppFilter={collectionsAppFilterGamepad}
                 onSelectSubTab={handleSelectSubTab}
+                onEditSubTab={subTab => showModalEditTab(subTab, tabMasterManager, true)}
             />
             {subTabContent}
         </>

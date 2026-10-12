@@ -7,9 +7,16 @@ export interface SubTabBarProps {
     selectedSubTabId: string | null
     onSelectSubTab: (subTabId: string | null) => void
     collectionAppFilter?: any
+    onEditSubTab?: (subTab: CustomTabContainer) => void
 }
 
-export const SubTabBar: VFC<SubTabBarProps> = ({ subTabs, selectedSubTabId, onSelectSubTab, collectionAppFilter }) => {
+export const SubTabBar: VFC<SubTabBarProps> = ({
+    subTabs,
+    selectedSubTabId,
+    onSelectSubTab,
+    collectionAppFilter,
+    onEditSubTab,
+}) => {
     const tabRefs = useRef<Map<string, HTMLDivElement | null>>(new Map())
     const allRef = useRef<HTMLDivElement | null>(null)
 
@@ -114,6 +121,8 @@ export const SubTabBar: VFC<SubTabBarProps> = ({ subTabs, selectedSubTabId, onSe
                                         onSelectSubTab(subTab.id)
                                         focusTarget(subTab.id)
                                     }}
+                                    onMenuButton={() => onEditSubTab?.(subTab)}
+                                    onMenuActionDescription='Tab Master'
                                     noFocusRing
                                 >
                                     <span className={gamepadTabbedPageClasses.TabTitle}>{subTab.title}</span>
