@@ -45,3 +45,7 @@ yalc.lock
 .vscode/tasks.json
 # Ignore output folder
 dist
+
+# Ignore build staging folder and generated plugin archives
+.build/
+TabMaster_*.zip
