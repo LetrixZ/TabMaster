@@ -10,6 +10,8 @@ type TabContainer = {
     autoHide?: boolean
     sortByOverride?: number //The eSortBy number to force use for sorting. -1 ignores override.
     visibleToOthers?: boolean
+    subTabs?: string[] //array of sub-tab IDs (only for parent tabs)
+    parentId?: string //ID of parent tab (only for sub-tabs)
 }
 
 interface TabSettings extends TabContainer {}

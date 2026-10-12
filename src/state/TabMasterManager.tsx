@@ -269,6 +269,16 @@ export class TabMasterManager {
             if (tabContainer.filters && tabContainer.filters.length !== 0) {
                 ;(tabContainer as CustomTabContainer).buildCollection()
             }
+            // Also rebuild sub-tabs
+            const subTabs = (tabContainer as CustomTabContainer).subTabs
+            if (subTabs && subTabs.length > 0) {
+                for (const subTabId of subTabs) {
+                    const subTab = this.tabsMap.get(subTabId) as CustomTabContainer
+                    if (subTab && subTab.filters) {
+                        subTab.buildCollection()
+                    }
+                }
+            }
         })
     }
 
@@ -493,7 +503,9 @@ export class TabMasterManager {
      * @param updatedTabSettings The new settings for the tab.
      */
     updateCustomTab(customTabId: string, updatedTabSettings: EditableTabSettings) {
-        ;(this.tabsMap.get(customTabId) as CustomTabContainer).update(updatedTabSettings)
+        const tabContainer = this.tabsMap.get(customTabId) as CustomTabContainer
+        tabContainer.update(updatedTabSettings)
+        if (updatedTabSettings.subTabs) tabContainer.subTabs = updatedTabSettings.subTabs
 
         const filters = updatedTabSettings.filters
         if (filters) this.addCollectionReactionsForFilters(flattenFilters(filters))
@@ -511,6 +523,19 @@ export class TabMasterManager {
         }
 
         this.rebuildTabLists()
+        this.updateAndSave()
+    }
+
+    /**
+     * Reorders the sub-tabs of a parent tab.
+     * @param parentTabId The ID of the parent tab.
+     * @param orderedSubTabIds The updated order of sub-tabs.
+     */
+    reorderSubTabs(parentTabId: string, orderedSubTabIds: string[]) {
+        const parentTab = this.tabsMap.get(parentTabId) as CustomTabContainer
+        if (!parentTab) return
+
+        parentTab.subTabs = orderedSubTabIds
         this.updateAndSave()
     }
 
@@ -573,6 +598,23 @@ export class TabMasterManager {
                 this.visibleTabsList[i].position--
             }
         }
+
+        // If this tab has sub-tabs, delete them too
+        if ((tabContainer as CustomTabContainer).subTabs) {
+            const subTabs = (tabContainer as CustomTabContainer).subTabs
+            for (const subTabId of subTabs) {
+                this.tabsMap.delete(subTabId)
+            }
+        }
+
+        // If this is a sub-tab, remove it from parent's subTabs array
+        if ((tabContainer as CustomTabContainer).parentId) {
+            const parentTab = this.tabsMap.get((tabContainer as CustomTabContainer).parentId!) as CustomTabContainer
+            if (parentTab) {
+                parentTab.subTabs = parentTab.subTabs.filter(id => id !== tabId)
+            }
+        }
+
         this.tabsMap.delete(tabId)
         this.tabProfileManager?.onDeleteTab(tabId)
         if (!this.tabProfileManager)
@@ -593,6 +635,8 @@ export class TabMasterManager {
      * @param autoHide Whether or not the tab should automatically be hidden if it's collection is empty.
      * @param visibleToOthers Whether or not the tab can be copied by other users.
      * @param sortByOverride The eSortBy number to force use for sorting. -1 ignores override.
+     * @param subTabs Array of sub-tab IDs.
+     * @param parentId ID of parent tab (if this is a sub-tab).
      */
     createCustomTab(
         title: string,
@@ -602,7 +646,9 @@ export class TabMasterManager {
         categoriesToInclude: number,
         autoHide: boolean,
         visibleToOthers: boolean,
-        sortByOverride: number
+        sortByOverride: number,
+        subTabs: string[] = [],
+        parentId: string | undefined = undefined
     ) {
         const id = uuidv4()
         this.addCollectionReactionsForFilters(flattenFilters(filterSettingsList))
@@ -616,10 +662,13 @@ export class TabMasterManager {
                 categoriesToInclude,
                 autoHide,
                 visibleToOthers,
-                sortByOverride
+                sortByOverride,
+                subTabs,
+                parentId
             )
         )
         this.updateAndSave()
+        return id
     }
 
     createPresetTab<Name extends PresetName>(presetName: Name, tabTitle: string, ...options: PresetOptions<Name>) {
@@ -634,6 +683,53 @@ export class TabMasterManager {
             false,
             -1
         )
+    }
+
+    /**
+     * Creates a new sub-tab under a parent tab.
+     * @param parentTabId The ID of the parent tab.
+     * @param title The title of the sub-tab.
+     * @param filterSettingsList The list of filters for the sub-tab.
+     * @param filtersMode The logic mode for these filters.
+     * @param categoriesToInclude A bit field of which categories should be included in the sub-tab.
+     * @param autoHide Whether or not the sub-tab should automatically be hidden if it's collection is empty.
+     * @param visibleToOthers Whether or not the sub-tab can be copied by other users.
+     * @param sortByOverride The eSortBy number to force use for sorting. -1 ignores override.
+     * @returns The ID of the created sub-tab.
+     */
+    createSubTab(
+        parentTabId: string,
+        title: string,
+        filterSettingsList: TabFilterSettings<FilterType>[],
+        filtersMode: LogicalMode,
+        categoriesToInclude: number,
+        autoHide: boolean,
+        visibleToOthers: boolean,
+        sortByOverride: number
+    ) {
+        const parentTab = this.tabsMap.get(parentTabId) as CustomTabContainer
+        if (!parentTab) return
+
+        const id = uuidv4()
+        this.addCollectionReactionsForFilters(flattenFilters(filterSettingsList))
+
+        this.addCustomTabContainer(
+            id,
+            title,
+            -1, // Sub-tabs don't have position in the main tab list
+            filterSettingsList,
+            filtersMode,
+            categoriesToInclude,
+            autoHide,
+            visibleToOthers,
+            sortByOverride,
+            [],
+            parentTabId
+        )
+
+        parentTab.subTabs.push(id)
+        this.updateAndSave()
+        return id
     }
 
     /**
@@ -773,6 +869,8 @@ export class TabMasterManager {
                 autoHide,
                 visibleToOthers,
                 sortByOverride,
+                subTabs,
+                parentId,
             } = tabsSettings[keyId]
             const filters = Filter.removeUnknownTypes(_filters)
             const tabContainer = filters
@@ -785,7 +883,9 @@ export class TabMasterManager {
                       categoriesToInclude!,
                       autoHide!,
                       visibleToOthers!,
-                      sortByOverride
+                      sortByOverride,
+                      subTabs || [],
+                      parentId
                   )
                 : this.addDefaultTabContainer(tabsSettings[keyId])
 
@@ -837,6 +937,20 @@ export class TabMasterManager {
     }
 
     /**
+     * Gets the sub-tabs for a parent tab.
+     * @param parentTabId The ID of the parent tab.
+     * @returns Array of sub-tab containers.
+     */
+    getSubTabs(parentTabId: string): CustomTabContainer[] {
+        const parentTab = this.tabsMap.get(parentTabId) as CustomTabContainer
+        if (!parentTab || !parentTab.subTabs || parentTab.subTabs.length === 0) return []
+
+        return parentTab.subTabs
+            .map(subTabId => this.tabsMap.get(subTabId) as CustomTabContainer)
+            .filter(tab => tab !== undefined)
+    }
+
+    /**
      * Gets the userFriends and store tags.
      * @returns The tags and userFriends currently in state.
      */
@@ -882,8 +996,14 @@ export class TabMasterManager {
                       autoHide: (tabContainer as CustomTabContainer).autoHide,
                       visibleToOthers: (tabContainer as CustomTabContainer).visibleToOthers,
                       sortByOverride: (tabContainer as CustomTabContainer).sortByOverride,
+                      subTabs: (tabContainer as CustomTabContainer).subTabs,
+                      parentId: (tabContainer as CustomTabContainer).parentId,
                   }
-                : tabContainer
+                : {
+                      ...tabContainer,
+                      subTabs: (tabContainer as CustomTabContainer).subTabs,
+                      parentId: (tabContainer as CustomTabContainer).parentId,
+                  }
 
             allTabsSettings[tabContainer.id] = tabSettings
         })
@@ -900,6 +1020,8 @@ export class TabMasterManager {
      * @param autoHide Whether or not the tab should automatically be hidden if it's collection is empty.
      * @param visibleToOthers Whether or not the tab can be added by other users.
      * @param sortByOverride The eSortBy number to force use for sorting. -1 ignores override.
+     * @param subTabs Array of sub-tab IDs.
+     * @param parentId ID of parent tab (if this is a sub-tab).
      * @returns A tab container for this tab.
      */
     private addCustomTabContainer(
@@ -911,7 +1033,9 @@ export class TabMasterManager {
         categoriesToInclude: number,
         autoHide: boolean,
         visibleToOthers: boolean,
-        sortByOverride: number = -1
+        sortByOverride: number = -1,
+        subTabs: string[] = [],
+        parentId: string | undefined = undefined
     ) {
         const tabContainer = new CustomTabContainer(
             tabId,
@@ -922,7 +1046,9 @@ export class TabMasterManager {
             categoriesToInclude,
             autoHide,
             visibleToOthers,
-            sortByOverride
+            sortByOverride,
+            subTabs,
+            parentId
         )
         this.tabsMap.set(tabId, tabContainer)
         return tabContainer
@@ -964,7 +1090,7 @@ export class TabMasterManager {
     /**
      * Dispatches event to update context provider and rerenders library component.
      */
-    private update() {
+    update() {
         this.eventBus.dispatchEvent(new Event('stateUpdate'))
         this.rerenderLibrary()
     }

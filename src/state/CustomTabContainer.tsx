@@ -20,6 +20,8 @@ export class CustomTabContainer implements TabContainer {
     visibleToOthers: boolean
     dependsOnMicroSDeck: boolean
     sortByOverride: number
+    subTabs: string[]
+    parentId: string | undefined
 
     /**
      * Creates a new CustomTabContainer.
@@ -32,6 +34,8 @@ export class CustomTabContainer implements TabContainer {
      * @param autoHide Whether or not the tab should automatically be hidden if it's collection is empty.
      * @param visibleToOthers Whether or not the tab can be added by other users.
      * @param sortByOverride The eSortBy number to force use for sorting. -1 ignores override.
+     * @param subTabs Array of sub-tab IDs.
+     * @param parentId ID of parent tab (if this is a sub-tab).
      */
     constructor(
         id: string,
@@ -42,7 +46,9 @@ export class CustomTabContainer implements TabContainer {
         categoriesToInclude: number,
         autoHide: boolean,
         visibleToOthers: boolean,
-        sortByOverride: number
+        sortByOverride: number,
+        subTabs: string[] = [],
+        parentId: string | undefined = undefined
     ) {
         this.id = id
         this.title = title
@@ -54,9 +60,14 @@ export class CustomTabContainer implements TabContainer {
         this.visibleToOthers = visibleToOthers
         this.dependsOnMicroSDeck = false
         this.sortByOverride = sortByOverride
+        this.subTabs = subTabs
+        this.parentId = parentId
 
         //@ts-ignore
         this.collection = {
+            allApps: [],
+            visibleApps: [],
+            apps: new Map(),
             AsDeletableCollection: () => null,
             AsDragDropCollection: () => null,
             AsEditableCollection: () => null,
@@ -75,7 +86,7 @@ export class CustomTabContainer implements TabContainer {
             id: this.id,
         }
 
-        if (this.position > -1) {
+        if (this.position > -1 || this.parentId) {
             this.buildCollection()
         }
         this.checkMicroSDeckDependency()
@@ -165,6 +176,7 @@ export class CustomTabContainer implements TabContainer {
         this.autoHide = updatedTabInfo.autoHide
         this.visibleToOthers = updatedTabInfo.visibleToOthers
         this.sortByOverride = updatedTabInfo.sortByOverride
+        if (updatedTabInfo.subTabs) this.subTabs = updatedTabInfo.subTabs
         this.buildCollection()
         this.checkMicroSDeckDependency()
     }

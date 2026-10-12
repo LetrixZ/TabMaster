@@ -1,14 +1,18 @@
 import { afterPatch, findInReactTree, Patch, replacePatch, showContextMenu, wrapReactType } from '@decky/ui'
 import { RoutePatch } from '@decky/api'
-import { ReactElement, useEffect, useState } from 'react'
+import { Fragment, ReactElement, useCallback, useEffect, useState } from 'react'
 import { TabMasterManager } from '../state/TabMasterManager'
 import { CustomTabContainer } from '../state/CustomTabContainer'
 import { LogController } from '../lib/controllers/LogController'
 import { LibraryMenu } from '../components/context-menus/LibraryMenu'
 import { MicroSDeckInterop } from '../lib/controllers/MicroSDeckInterop'
 import { addPatch } from '../lib/Utils'
+import { SubTabBar } from '../components/other/SubTabBar'
 
 let TabAppGridComponent: TabAppGridComponent | undefined
+
+// Persist last selected sub-tab per parent tab
+const lastSelectedSubTabs: Map<string, string | null> = new Map()
 
 /**
  * Patches the Steam library to allow the plugin to change the tabs.
@@ -111,21 +115,47 @@ export const patchLibrary = (tabMasterManager: TabMasterManager): RoutePatch => 
                                     let tablist = tabMasterManager.getTabs().visibleTabsList
                                     patchedTabs = tablist.flatMap(tabContainer => {
                                         if (tabContainer.filters) {
+                                            const customTab = tabContainer as CustomTabContainer
+                                            const subTabs = tabMasterManager.getSubTabs(tabContainer.id)
+                                            const hasSubTabs = subTabs.length > 0
+
                                             const footer = {
                                                 ...(tabTemplate.footer ?? {}),
                                                 onMenuButton: getShowMenu(tabContainer.id, tabMasterManager),
                                                 onMenuActionDescription: 'Tab Master',
                                             }
-                                            return (
-                                                (tabContainer as CustomTabContainer).getActualTab(
-                                                    TabAppGrid,
-                                                    TabContext,
-                                                    sortingProps,
-                                                    footer,
-                                                    collectionsAppFilterGamepad,
-                                                    isMicroSDeckInstalled
-                                                ) || []
+
+                                            const actualTab = customTab.getActualTab(
+                                                TabAppGrid,
+                                                TabContext,
+                                                sortingProps,
+                                                footer,
+                                                collectionsAppFilterGamepad,
+                                                isMicroSDeckInstalled
                                             )
+
+                                            if (!actualTab) return []
+
+                                            // If tab has sub-tabs, wrap content with SubTabBarWithContents
+                                            if (hasSubTabs) {
+                                                return {
+                                                    ...actualTab,
+                                                    content: (
+                                                        <SubTabBarWithContents
+                                                            parentTab={customTab}
+                                                            subTabs={subTabs}
+                                                            TabAppGrid={TabAppGrid}
+                                                            TabContext={TabContext}
+                                                            sortingProps={sortingProps}
+                                                            footer={footer}
+                                                            collectionsAppFilterGamepad={collectionsAppFilterGamepad}
+                                                            isMicroSDeckInstalled={isMicroSDeckInstalled}
+                                                        />
+                                                    ),
+                                                }
+                                            }
+
+                                            return actualTab
                                         } else {
                                             return (
                                                 tabs.find(actualTab => {
@@ -169,6 +199,72 @@ export const patchLibrary = (tabMasterManager: TabMasterManager): RoutePatch => 
 
         return props
     })
+}
+
+/**
+ * Component that manages sub-tab selection state and renders both the bar and content.
+ * Uses its own useState so it re-renders independently of the memoized tab content.
+ */
+function SubTabBarWithContents({
+    parentTab,
+    subTabs,
+    TabAppGrid,
+    TabContext,
+    sortingProps,
+    footer,
+    collectionsAppFilterGamepad,
+    isMicroSDeckInstalled,
+}: {
+    parentTab: CustomTabContainer
+    subTabs: CustomTabContainer[]
+    TabAppGrid: TabAppGridComponent
+    TabContext: TabContext | undefined
+    sortingProps: { eSortBy: number; setSortBy: (n: number) => void; showSortingContextMenu: () => void }
+    footer: SteamTab['footer']
+    collectionsAppFilterGamepad: any
+    isMicroSDeckInstalled: boolean
+}) {
+    const initialSelected = lastSelectedSubTabs.get(parentTab.id) ?? null
+    const [selectedSubTabId, setSelectedSubTabId] = useState<string | null>(initialSelected)
+
+    const handleSelectSubTab = useCallback(
+        (subTabId: string | null) => {
+            lastSelectedSubTabs.set(parentTab.id, subTabId)
+            setSelectedSubTabId(subTabId)
+        },
+        [parentTab.id]
+    )
+
+    const selectedSubTab = selectedSubTabId ? subTabs.find(st => st.id === selectedSubTabId) : null
+    const subTabContent = selectedSubTab
+        ? selectedSubTab.getActualTab(
+              TabAppGrid,
+              TabContext,
+              sortingProps,
+              {},
+              collectionsAppFilterGamepad,
+              isMicroSDeckInstalled
+          )?.content
+        : parentTab.getActualTab(
+              TabAppGrid,
+              TabContext,
+              sortingProps,
+              footer,
+              collectionsAppFilterGamepad,
+              isMicroSDeckInstalled
+          )?.content
+
+    return (
+        <>
+            <SubTabBar
+                subTabs={subTabs}
+                selectedSubTabId={selectedSubTabId}
+                collectionAppFilter={collectionsAppFilterGamepad}
+                onSelectSubTab={handleSelectSubTab}
+            />
+            {subTabContent}
+        </>
+    )
 }
 
 /**

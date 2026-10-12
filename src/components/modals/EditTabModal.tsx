@@ -28,8 +28,12 @@ import {
 import { BiSolidDownArrow } from 'react-icons/bi'
 import { CustomTabContainer } from '../../state/CustomTabContainer'
 import { useSortingMenuItems } from '../../hooks/useSortingMenuItems'
+import { FaPlus, FaTrash, FaEdit } from 'react-icons/fa'
 
-export type EditableTabSettings = Omit<Required<TabSettings>, 'position' | 'id'>
+export type EditableTabSettings = Omit<Required<TabSettings>, 'position' | 'id' | 'parentId' | 'subTabs'> & {
+    subTabs?: string[]
+    parentId?: string
+}
 
 type EditTabModalProps = {
     closeModal?: () => void
@@ -43,6 +47,7 @@ type EditTabModalProps = {
     autoHide: boolean
     visibleToOthers: boolean
     sortBy: number
+    isSubTab: boolean
 }
 
 /**
@@ -60,6 +65,7 @@ export const EditTabModal: VFC<EditTabModalProps> = ({
     autoHide: _autoHide,
     visibleToOthers: _visibleToOthers,
     sortBy,
+    isSubTab,
 }) => {
     const [name, setName] = useState<string>(tabTitle ?? '')
     const [topLevelFilters, setTopLevelFilters] = useState<TabFilterSettings<FilterType>[]>(tabFilters)
@@ -110,6 +116,7 @@ export const EditTabModal: VFC<EditTabModalProps> = ({
 
     function onSave() {
         if (canSave) {
+            const parentTab = tabId ? (tabMasterManager.getTabs().tabsMap.get(tabId) as CustomTabContainer) : undefined
             const updated: EditableTabSettings = {
                 title: name,
                 filters: topLevelFilters,
@@ -118,6 +125,8 @@ export const EditTabModal: VFC<EditTabModalProps> = ({
                 autoHide: autoHide,
                 sortByOverride: sortByOverride,
                 visibleToOthers: visibleToOthers,
+                subTabs: parentTab?.subTabs || [],
+                parentId: parentTab?.parentId,
             }
             onConfirm(tabId, updated)
             closeModal!()
@@ -199,6 +208,7 @@ export const EditTabModal: VFC<EditTabModalProps> = ({
                             canAddFilter={canAddFilter}
                             collapseFilters={!!tabTitle}
                         />
+                        {!isSubTab && tabId && <SubTabsPanel tabId={tabId} tabMasterManager={tabMasterManager} />}
                     </Focusable>
                 </ConfirmModal>
             </div>
@@ -305,6 +315,148 @@ const IncludeCategoriesPanel: VFC<IncludeCategoriesPanelProps> = ({ categoriesTo
     )
 }
 
+type SubTabsPanelProps = {
+    tabId: string
+    tabMasterManager: TabMasterManager
+}
+
+const SubTabsPanel: VFC<SubTabsPanelProps> = ({ tabId, tabMasterManager }) => {
+    const [isOpen, setIsOpen] = useState(false)
+    const [refresh, setRefresh] = useState(true)
+
+    const parentTab = tabMasterManager.getTabs().tabsMap.get(tabId) as CustomTabContainer
+    const actualSubTabs = (parentTab?.subTabs || [])
+        .map(id => tabMasterManager.getTabs().tabsMap.get(id) as CustomTabContainer)
+        .filter(tab => tab !== undefined)
+
+    return (
+        <>
+            <div>
+                <Focusable
+                    style={{ margin: '0 calc(-12px - 1.4vw)' }}
+                    onActivate={() => {
+                        playUISound('/sounds/deck_ui_misc_01.wav')
+                        setIsOpen(isOpen => !isOpen)
+                    }}
+                    noFocusRing={true}
+                    className='highlight-on-focus'
+                    focusClassName='start-focused'
+                >
+                    <div style={{ margin: '0 calc(12px + 1.4vw)', padding: '0 16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                            <div
+                                style={{ padding: '12px 0', float: 'left' }}
+                                className={quickAccessControlsClasses.PanelSectionTitle}
+                            >
+                                Sub-Tabs ({actualSubTabs.length})
+                            </div>
+                            <div style={{ padding: '12px 40px', flex: '1' }} />
+                            <div style={{ paddingRight: '10px', display: 'flex', alignItems: 'center' }}>
+                                <BiSolidDownArrow
+                                    style={{
+                                        transform: !isOpen ? 'rotate(90deg)' : '',
+                                        transition: 'transform 0.2s ease-in-out',
+                                    }}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </Focusable>
+                {isOpen && (
+                    <Focusable flow-children='down' style={{ padding: '10px 18px' }}>
+                        {actualSubTabs.map(subTab => (
+                            <Focusable
+                                key={subTab.id}
+                                flow-children='right'
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    padding: '8px',
+                                    marginBottom: '4px',
+                                    background: 'rgba(255, 255, 255, 0.05)',
+                                    borderRadius: '4px',
+                                }}
+                            >
+                                <span>{subTab.title}</span>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    <Focusable
+                                        onActivate={() => showModalEditTab(subTab, tabMasterManager, true)}
+                                        style={{
+                                            padding: '8px',
+                                            cursor: 'pointer',
+                                            borderRadius: '4px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                        }}
+                                    >
+                                        <FaEdit />
+                                    </Focusable>
+                                    <Focusable
+                                        onActivate={() => {
+                                            tabMasterManager.deleteTab(subTab.id)
+                                            setRefresh(!refresh)
+                                        }}
+                                        style={{
+                                            padding: '8px',
+                                            cursor: 'pointer',
+                                            borderRadius: '4px',
+                                            color: '#ff6b6b',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                        }}
+                                    >
+                                        <FaTrash />
+                                    </Focusable>
+                                </div>
+                            </Focusable>
+                        ))}
+                        <Focusable
+                            onActivate={() => {
+                                tabMasterManager.createSubTab(
+                                    tabId,
+                                    'New Sub-Tab',
+                                    [],
+                                    'and',
+                                    IncludeCategories.games,
+                                    false,
+                                    false,
+                                    -1
+                                )
+                                setRefresh(!refresh)
+                            }}
+                            style={{
+                                padding: '8px',
+                                marginTop: '8px',
+                                background: 'rgba(255, 255, 255, 0.1)',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '8px',
+                            }}
+                        >
+                            <FaPlus /> Add Sub-Tab
+                        </Focusable>
+                    </Focusable>
+                )}
+            </div>
+            <div
+                style={{
+                    position: 'relative',
+                    left: 'calc(16px - 1.8vw)',
+                    right: 'calc(16px - 1.8vw)',
+                    height: '1px',
+                    background: '#ffffff1a',
+                }}
+            />
+        </>
+    )
+}
+
 /**
  * Function to show the EditTabModal when creating a new tab.
  * @param tabMasterManager TabMasterManager instance.
@@ -321,7 +473,8 @@ export function showModalNewTab(tabMasterManager: TabMasterManager) {
                     tabSettings.categoriesToInclude,
                     tabSettings.autoHide,
                     tabSettings.visibleToOthers,
-                    tabSettings.sortByOverride
+                    tabSettings.sortByOverride,
+                    tabSettings.subTabs
                 )
             }}
             tabFilters={[]}
@@ -331,6 +484,7 @@ export function showModalNewTab(tabMasterManager: TabMasterManager) {
             autoHide={false}
             visibleToOthers={false}
             sortBy={-1}
+            isSubTab={false}
         />
     )
 }
@@ -352,7 +506,8 @@ export function showModalDuplicateTab(tabContainer: CustomTabContainer, tabMaste
                     tabSettings.categoriesToInclude,
                     tabSettings.autoHide,
                     tabSettings.visibleToOthers,
-                    tabSettings.sortByOverride
+                    tabSettings.sortByOverride,
+                    tabSettings.subTabs
                 )
             }}
             tabMasterManager={tabMasterManager}
@@ -362,6 +517,7 @@ export function showModalDuplicateTab(tabContainer: CustomTabContainer, tabMaste
             autoHide={tabContainer.autoHide}
             visibleToOthers={tabContainer.visibleToOthers}
             sortBy={tabContainer.sortByOverride}
+            isSubTab={false}
         />
     )
 }
@@ -371,7 +527,11 @@ export function showModalDuplicateTab(tabContainer: CustomTabContainer, tabMaste
  * @param tabContainer CustomTabContainer to edit.
  * @param tabMasterManager TabMasterManager instance.
  */
-export function showModalEditTab(tabContainer: CustomTabContainer, tabMasterManager: TabMasterManager) {
+export function showModalEditTab(
+    tabContainer: CustomTabContainer,
+    tabMasterManager: TabMasterManager,
+    isSubTab = false
+) {
     showModal(
         <EditTabModal
             onConfirm={(tabId: string | undefined, updatedTabSettings: EditableTabSettings) => {
@@ -386,6 +546,7 @@ export function showModalEditTab(tabContainer: CustomTabContainer, tabMasterMana
             autoHide={tabContainer.autoHide}
             visibleToOthers={tabContainer.visibleToOthers}
             sortBy={tabContainer.sortByOverride}
+            isSubTab={isSubTab}
         />
     )
 }

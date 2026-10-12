@@ -22,6 +22,8 @@ import { MicroSDeckInterop } from '../../lib/controllers/MicroSDeckInterop'
 import { TabProfilesSubMenu } from './TabProfileMenu'
 import { TabIdEntryType } from '../qam/QuickAccessContent'
 import { showAddCollectionModal } from '../modals/AddCollectionModal'
+import { FilterDefaultParams } from '../filters/Filters'
+import { IncludeCategories } from '../../lib/Utils'
 
 export interface LibraryMenuProps {
     closeMenu: () => void
@@ -133,6 +135,31 @@ const LibraryMenuItems: VFC<LibraryMenuItemsProps> = ({ selectedTabId, closeMenu
                     onClick={() => showModalEditTab(tabContainer as CustomTabContainer, tabMasterManager)}
                 >
                     Edit
+                </MenuItem>
+            )}
+            {isCustomTab && (
+                <MenuItem
+                    onOKActionDescription={`Add Sub-Tab to "${tabTitle}"`}
+                    onClick={() => {
+                        tabMasterManager.createSubTab(
+                            selectedTabId,
+                            'New Sub-Tab',
+                            [
+                                {
+                                    type: 'collection',
+                                    inverted: false,
+                                    params: FilterDefaultParams().collection,
+                                },
+                            ],
+                            'and',
+                            IncludeCategories.games,
+                            false,
+                            false,
+                            -1
+                        )
+                    }}
+                >
+                    Add Sub-Tab
                 </MenuItem>
             )}
             {isCustomTab && (
