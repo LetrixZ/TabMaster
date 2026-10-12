@@ -173,7 +173,10 @@ export class TabMasterManager {
         // * subscribe to achievement cache changes
         this.addDisposer(
             reaction(
-                () => appAchievementProgressCache.m_achievementProgress.mapCache.size,
+                () =>
+                    typeof appAchievementProgressCache === 'undefined'
+                        ? 0
+                        : appAchievementProgressCache?.m_achievementProgress?.mapCache?.size ?? 0,
                 this.handleAchievementsReaction.bind(this)
             )
         )

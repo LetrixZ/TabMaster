@@ -800,12 +800,16 @@ export class Filter {
             }
         },
         achievements: (params: FilterParams<'achievements'>, appOverview: SteamAppOverview) => {
-            const percentage = appAchievementProgressCache.GetAchievementProgress(appOverview.appid)
+            const achievementCache =
+                typeof appAchievementProgressCache === 'undefined' ? undefined : appAchievementProgressCache
+            if (!achievementCache?.m_achievementProgress?.mapCache) return false
+
+            const percentage = achievementCache.GetAchievementProgress(appOverview.appid)
 
             if (params.thresholdType === 'percent') {
                 return params.condition === 'above' ? percentage >= params.threshold : percentage <= params.threshold
             } else {
-                const entry = appAchievementProgressCache.m_achievementProgress.mapCache.get(appOverview.appid)
+                const entry = achievementCache.m_achievementProgress.mapCache.get(appOverview.appid)
 
                 if (entry) {
                     const count = entry.unlocked
